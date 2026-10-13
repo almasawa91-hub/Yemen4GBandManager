@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Router
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,6 +32,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
@@ -345,6 +347,7 @@ private fun UsageDashboard() {
     var monthlyLimit by remember { mutableStateOf(ledger.monthlyLimitGb().toString()) }
     var notice by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
+    var showResetBaselineDialog by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     val summary = remember(refresh) { ledger.summary() }
     val recent = remember(refresh) { ledger.recentRecords(8) }
@@ -433,6 +436,34 @@ private fun UsageDashboard() {
                 singleLine = true,
                 label = { Text("إجمالي الرفع منذ تشغيل العداد (MB)") }
             )
+            androidx.compose.material3.OutlinedButton(
+                onClick = { showResetBaselineDialog = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("إعادة ضبط خط الأساس للعدادات")
+            }
+            if (showResetBaselineDialog) {
+                AlertDialog(
+                    onDismissRequest = { showResetBaselineDialog = false },
+                    title = { Text("إعادة ضبط خط الأساس؟") },
+                    text = {
+                        Text("سيُنسى آخر رقمي عداد فقط. لن يُحذف سجل الاستهلاك السابق. استخدم هذا الخيار إذا أُعيد تشغيل عداد المودم أو صُفّر.")
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            ledger.resetBaseline()
+                            showResetBaselineDialog = false
+                            notice = "تمت إعادة ضبط خط الأساس. القراءة التالية ستُحفظ كخط أساس جديد."
+                            isError = false
+                            downloadCounter = ""
+                            uploadCounter = ""
+                        }) { Text("تأكيد إعادة الضبط") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showResetBaselineDialog = false }) { Text("إلغاء") }
+                    }
+                )
+            }
             Button(
                 onClick = {
                     val down = downloadCounter.trim().replace(',', '.').toDoubleOrNull()
