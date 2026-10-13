@@ -306,29 +306,170 @@ private fun RouterDashboard() {
 
 @Composable
 private fun UsageDashboard() {
+    val context = LocalContext.current
+    val ledger = remember { UsageLedger(context.applicationContext) }
+    var downloadCounter by remember { mutableStateOf("") }
+    var uploadCounter by remember { mutableStateOf("") }
+    var monthlyLimit by remember { mutableStateOf(ledger.monthlyLimitGb().toString()) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    var isError by remember { mutableStateOf(false) }
+    var refresh by remember { mutableIntStateOf(0) }
+    val summary = remember(refresh) { ledger.summary() }
+    val recent = remember(refresh) { ledger.recentRecords(8) }
+
     SectionTitle("استهلاك الإنترنت")
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = Navy)
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("استهلاك اليوم", color = Color(0xFF64748B))
-            Text("— MB", fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Navy)
-            Text("بانتظار ربط عدادات المودم الفعلية", fontSize = 13.sp, color = Color(0xFF64748B))
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("إجمالي استهلاك هذا الشهر", color = Color(0xFFD5E1EA), fontSize = 14.sp)
+            Text(
+                String.format(Locale.US, "%.3f GB", (summary.monthDownloadMb + summary.monthUploadMb) / 1000.0),
+                fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White
+            )
+            Text(
+                "الحد الذي حددته: %.1f GB".format(Locale.US, summary.monthlyLimitGb),
+                color = Color(0xFFD5E1EA), fontSize = 13.sp
+            )
+            val usedGb = (summary.monthDownloadMb + summary.monthUploadMb) / 1000.0
+            val fraction = (usedGb / summary.monthlyLimitGb).toFloat().coerceIn(0f, 1f)
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { fraction },
+                modifier = Modifier.fillMaxWidth(),
+                color = Teal,
+                trackColor = Color(0xFF42576A)
+            )
+            if (usedGb >= summary.monthlyLimitGb) {
+                Text("تنبيه: تجاوز الاستهلاك المسجل الحد الشهري المحدد.", color = Color(0xFFFFD7A8), fontSize = 12.sp)
+            }
         }
     }
+
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        MetricCard("التنزيل", "—", "MB / GB", Modifier.weight(1f))
-        MetricCard("الرفع", "—", "MB / GB", Modifier.weight(1f))
+        MetricCard(
+            "تنزيل اليوم",
+            String.format(Locale.US, "%.2f MB", summary.todayDownloadMb),
+            "من فروق العدادات المسجلة",
+            Modifier.weight(1f)
+        )
+        MetricCard(
+            "رفع اليوم",
+            String.format(Locale.US, "%.2f MB", summary.todayUploadMb),
+            "من فروق العدادات المسجلة",
+            Modifier.weight(1f)
+        )
     }
-    MetricCard("استهلاك الشهر", "— GB", "يُحسب لاحقاً من فروق العدادات المحفوظة", Modifier.fillMaxWidth())
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        MetricCard(
+            "تنزيل الشهر",
+            String.format(Locale.US, "%.2f GB", summary.monthDownloadMb / 1000.0),
+            "حتى الآن",
+            Modifier.weight(1f)
+        )
+        MetricCard(
+            "رفع الشهر",
+            String.format(Locale.US, "%.2f GB", summary.monthUploadMb / 1000.0),
+            "حتى الآن",
+            Modifier.weight(1f)
+        )
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("تسجيل قراءة عدادات المودم", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Text(
+                "انسخ القيم التراكمية للتنزيل والرفع من صفحة إحصاءات المودم. أول قراءة تحفظ خط أساس فقط، وبعدها يحسب التطبيق الفرق بين القراءات. هذه ليست قراءة تلقائية من المودم.",
+                color = Color(0xFF64748B), fontSize = 12.sp
+            )
+            OutlinedTextField(
+                value = downloadCounter,
+                onValueChange = { downloadCounter = it; notice = null },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("إجمالي التنزيل منذ تشغيل العداد (MB)") }
+            )
+            OutlinedTextField(
+                value = uploadCounter,
+                onValueChange = { uploadCounter = it; notice = null },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("إجمالي الرفع منذ تشغيل العداد (MB)") }
+            )
+            Button(
+                onClick = {
+                    val down = downloadCounter.trim().replace(',', '.').toDoubleOrNull()
+                    val up = uploadCounter.trim().replace(',', '.').toDoubleOrNull()
+                    if (down == null || up == null || !down.isFinite() || !up.isFinite() || down < 0 || up < 0) {
+                        notice = "أدخل رقمي عداد صحيحين وغير سالبين."
+                        isError = true
+                    } else {
+                        try {
+                            val record = ledger.recordCumulativeCounters(down, up)
+                            notice = if (record == null) {
+                                "تم حفظ خط الأساس. ستُحسب الفروقات عند تسجيل القراءة التالية."
+                            } else {
+                                "تم حفظ القراءة: تنزيل %.2f MB، رفع %.2f MB.".format(Locale.US, record.downloadMb, record.uploadMb)
+                            }
+                            isError = false
+                            refresh++
+                        } catch (e: Exception) {
+                            notice = e.message ?: "تعذر حفظ القراءة."
+                            isError = true
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("حفظ القراءة وحساب الاستهلاك") }
+
+            OutlinedTextField(
+                value = monthlyLimit,
+                onValueChange = { monthlyLimit = it; notice = null },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("حد الاستهلاك الشهري (GB)") }
+            )
+            Button(
+                onClick = {
+                    val limit = monthlyLimit.trim().replace(',', '.').toDoubleOrNull()
+                    if (limit == null || !limit.isFinite() || limit !in 0.1..100000.0) {
+                        notice = "أدخل حداً شهرياً بين 0.1 و100000 جيجابايت."
+                        isError = true
+                    } else {
+                        ledger.setMonthlyLimitGb(limit)
+                        notice = "تم حفظ حد الاستهلاك الشهري."
+                        isError = false
+                        refresh++
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("حفظ الحد الشهري") }
+            if (notice != null) {
+                Text(notice!!, color = if (isError) Color(0xFFB91C1C) else Color(0xFF047857), fontSize = 12.sp)
+            }
+        }
+    }
+
+    SectionTitle("آخر القراءات المحسوبة")
+    if (recent.isEmpty()) {
+        Text("لا توجد فروقات مسجلة بعد. أدخل قراءة أولى ثم قراءة جديدة لاحقاً.", color = Color(0xFF64748B), fontSize = 13.sp)
+    } else {
+        recent.forEach { item ->
+            MetricCard(
+                item.date,
+                "↓ %.2f MB   ↑ %.2f MB".format(Locale.US, item.downloadMb, item.uploadMb),
+                "تنزيل ورفع محسوبان من فرق قراءتين",
+                Modifier.fillMaxWidth()
+            )
+        }
+    }
     Text(
-        "الدقة: تُحوّل فروق عدادات البايت الحقيقية إلى MB (1 MB = 1,000,000 بايت). لن تُستخدم سرعة الإنترنت لتقدير الاستهلاك.",
+        "مهم: دقة التقارير تعتمد على إدخال العدادات التراكمية الصحيحة. إذا أُعيد ضبط عداد المودم، فسيتجاهل التطبيق الفرق السالب بدلاً من احتساب استهلاك خاطئ.",
         color = Color(0xFF475569), fontSize = 12.sp
     )
 }
