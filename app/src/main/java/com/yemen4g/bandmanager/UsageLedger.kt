@@ -88,6 +88,17 @@ internal class UsageLedger(context: Context) {
 
     fun recentRecords(limit: Int = 10): List<UsageRecord> = readRecords().takeLast(limit.coerceIn(1, 100)).reversed()
 
+    fun exportCsv(): String {
+        val out = StringBuilder("\uFEFFالتاريخ,التنزيل (MB),الرفع (MB),الإجمالي (MB)\n")
+        readRecords().forEach { item ->
+            out.append(item.date).append(',')
+                .append(String.format(Locale.US, "%.3f", item.downloadMb)).append(',')
+                .append(String.format(Locale.US, "%.3f", item.uploadMb)).append(',')
+                .append(String.format(Locale.US, "%.3f", item.downloadMb + item.uploadMb)).append('\n')
+        }
+        return out.toString()
+    }
+
     private fun readRecords(): List<UsageRecord> {
         val raw = prefs.getString(KEY_RECORDS, null) ?: return emptyList()
         return runCatching {
