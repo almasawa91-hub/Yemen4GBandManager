@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -145,7 +146,14 @@ private fun AppHeader() {
 
 @Composable
 private fun RouterDashboard() {
-    var address by remember { mutableStateOf("192.168.0.1") }
+    val context = LocalContext.current
+    val profilePrefs = remember {
+        context.getSharedPreferences("router_profile", android.content.Context.MODE_PRIVATE)
+    }
+    var address by remember { mutableStateOf(profilePrefs.getString("address", "192.168.0.1") ?: "192.168.0.1") }
+    var model by remember { mutableStateOf(profilePrefs.getString("model", "") ?: "") }
+    var firmware by remember { mutableStateOf(profilePrefs.getString("firmware", "") ?: "") }
+    var profileSaved by remember { mutableStateOf(false) }
     var probing by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<RouterProbeResult?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -183,11 +191,42 @@ private fun RouterDashboard() {
             Text("عنوان المودم", fontWeight = FontWeight.Bold, fontSize = 17.sp)
             OutlinedTextField(
                 value = address,
-                onValueChange = { address = it; error = null },
+                onValueChange = { address = it; error = null; profileSaved = false },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("مثال: 192.168.0.1 أو 192.168.1.1") }
             )
+            OutlinedTextField(
+                value = model,
+                onValueChange = { model = it; profileSaved = false },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("موديل المودم (كما على الملصق)") },
+                placeholder = { Text("مثال: ZTE MF286 أو ZLT S10") }
+            )
+            OutlinedTextField(
+                value = firmware,
+                onValueChange = { firmware = it; profileSaved = false },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("إصدار البرنامج الثابت (اختياري)") }
+            )
+            Button(
+                onClick = {
+                    profilePrefs.edit()
+                        .putString("address", address.trim())
+                        .putString("model", model.trim())
+                        .putString("firmware", firmware.trim())
+                        .apply()
+                    profileSaved = true
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("حفظ ملف المودم على الهاتف")
+            }
+            if (profileSaved) {
+                Text("تم حفظ العنوان والموديل والإصدار محلياً على هذا الهاتف.", color = Color(0xFF047857), fontSize = 12.sp)
+            }
             Button(
                 onClick = {
                     probing = true
@@ -238,6 +277,14 @@ private fun RouterDashboard() {
     }
 
     SectionTitle("التحكم بباند 4G")
+    if (model.isNotBlank()) {
+        MetricCard(
+            "ملف المودم المحفوظ",
+            model,
+            if (firmware.isBlank()) "لم يُسجل إصدار البرنامج الثابت" else "Firmware: $firmware",
+            Modifier.fillMaxWidth()
+        )
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         MetricCard("الباند الحالي", "غير مقروء", "يتطلب موصلًا خاصًا بالموديل", Modifier.weight(1f))
         MetricCard("قوة الإشارة", "—", "قراءة فعلية غير متاحة بعد", Modifier.weight(1f))
