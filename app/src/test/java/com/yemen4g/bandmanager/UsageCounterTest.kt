@@ -31,6 +31,22 @@ class UsageCounterTest {
     }
 
     @Test
+    fun cumulativeUsageDeltaIsCorrect() {
+        assertEquals(12.5, cumulativeCounterDeltaMb(100.0, 112.5), 0.0001)
+    }
+
+    @Test
+    fun cumulativeCounterResetIsTreatedAsNewBaseline() {
+        assertEquals(0.0, cumulativeCounterDeltaMb(500.0, 10.0), 0.0)
+    }
+
+    @Test
+    fun invalidCumulativeCountersAreIgnored() {
+        assertEquals(0.0, cumulativeCounterDeltaMb(-1.0, 10.0), 0.0)
+        assertEquals(0.0, cumulativeCounterDeltaMb(10.0, Double.NaN), 0.0)
+    }
+
+    @Test
     fun formatsMegabytesUsingStableDecimalPoint() {
         assertEquals("1.50", formatMegabytes(1_500_000L))
     }
