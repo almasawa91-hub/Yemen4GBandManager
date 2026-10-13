@@ -224,6 +224,38 @@ private fun RouterDashboard() {
             ) {
                 Text("حفظ ملف المودم على الهاتف")
             }
+            Button(
+                onClick = {
+                    try {
+                        val entered = address.trim()
+                        require(entered.isNotBlank() && !entered.contains(" ") && !entered.contains("@")) {
+                            "أدخل عنوان إدارة صحيحاً أولاً."
+                        }
+                        val target = if (
+                            entered.startsWith("http://", true) ||
+                            entered.startsWith("https://", true)
+                        ) entered else "http://$entered"
+                        val parsed = java.net.URL(target)
+                        require(parsed.protocol == "http" || parsed.protocol == "https") {
+                            "نوع عنوان غير مدعوم."
+                        }
+                        require(parsed.host.isNotBlank() && parsed.userInfo == null) {
+                            "عنوان إدارة المودم غير صالح."
+                        }
+                        context.startActivity(
+                            android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(target)
+                            )
+                        )
+                    } catch (e: Exception) {
+                        error = e.message ?: "تعذر فتح صفحة إدارة المودم."
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("فتح صفحة إدارة المودم في المتصفح")
+            }
             if (profileSaved) {
                 Text("تم حفظ العنوان والموديل والإصدار محلياً على هذا الهاتف.", color = Color(0xFF047857), fontSize = 12.sp)
             }
