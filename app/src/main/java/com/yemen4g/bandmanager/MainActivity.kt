@@ -206,6 +206,27 @@ private fun RouterDashboard() {
                 label = { Text("موديل المودم (كما على الملصق)") },
                 placeholder = { Text("مثال: ZTE MF286 أو ZLT S10") }
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                androidx.compose.material3.OutlinedButton(
+                    onClick = { model = "ZLT S25"; profileSaved = false },
+                    modifier = Modifier.weight(1f)
+                ) { Text("اختيار ZLT S25") }
+                androidx.compose.material3.OutlinedButton(
+                    onClick = { model = "ZTE MF293N"; profileSaved = false },
+                    modifier = Modifier.weight(1f)
+                ) { Text("اختيار ZTE MF293N") }
+            }
+            if (model.contains("S25", ignoreCase = true)) {
+                Text(
+                    "ملف ZLT S25: سنفحص واجهة الإدارة محلياً. دعم قفل الخلية والباند مذكور في مواصفات الجهاز، لكن أوامر التحكم تختلف حسب إصدار البرنامج الثابت ولا تُفعّل قبل التحقق.",
+                    color = Color(0xFF475569), fontSize = 12.sp
+                )
+            } else if (model.contains("MF293N", ignoreCase = true)) {
+                Text(
+                    "ملف ZTE MF293N: عنوان API وحقول الباند تعتمد على نسخة البرنامج الثابت ومشغل الشبكة. سيبقى الفحص قراءة فقط حتى التأكد من الواجهة الفعلية.",
+                    color = Color(0xFF475569), fontSize = 12.sp
+                )
+            }
             OutlinedTextField(
                 value = firmware,
                 onValueChange = { firmware = it; profileSaved = false },
