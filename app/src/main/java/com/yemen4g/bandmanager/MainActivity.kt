@@ -187,7 +187,7 @@ private fun RouterDashboard() {
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("مثال: 192.168.0.1 أو 192.168.1.1") }
-            }
+            )
             Button(
                 onClick = {
                     probing = true
