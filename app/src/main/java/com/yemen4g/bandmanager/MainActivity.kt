@@ -470,13 +470,15 @@ private fun UsageDashboard() {
     }
     Button(
         onClick = {
-            val csv = ledger.exportCsv()
-            val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                type = "text/csv"
-                putExtra(android.content.Intent.EXTRA_SUBJECT, "سجل استهلاك يمن فورجي")
-                putExtra(android.content.Intent.EXTRA_TEXT, csv)
+            runCatching {
+                UsageCsvExporter.share(context, ledger.exportCsv())
+            }.onFailure {
+                android.widget.Toast.makeText(
+                    context,
+                    "تعذر إنشاء ملف CSV: ${it.message ?: "خطأ غير معروف"}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
             }
-            context.startActivity(android.content.Intent.createChooser(sendIntent, "تصدير سجل الاستهلاك"))
         },
         modifier = Modifier.fillMaxWidth()
     ) {
