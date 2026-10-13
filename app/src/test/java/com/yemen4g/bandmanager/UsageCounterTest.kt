@@ -10,6 +10,11 @@ class UsageCounterTest {
     }
 
     @Test
+    fun negativeByteCountIsClampedToZero() {
+        assertEquals(0.0, bytesToMegabytes(-1L), 0.0)
+    }
+
+    @Test
     fun computesCumulativeCounterDelta() {
         assertEquals(200L, counterDelta(1_000L, 1_200L))
     }
@@ -17,5 +22,16 @@ class UsageCounterTest {
     @Test
     fun counterResetDoesNotCreateNegativeUsage() {
         assertEquals(0L, counterDelta(1_200L, 100L))
+    }
+
+    @Test
+    fun invalidNegativeCountersAreIgnored() {
+        assertEquals(0L, counterDelta(-1L, 100L))
+        assertEquals(0L, counterDelta(100L, -1L))
+    }
+
+    @Test
+    fun formatsMegabytesUsingStableDecimalPoint() {
+        assertEquals("1.50", formatMegabytes(1_500_000L))
     }
 }
