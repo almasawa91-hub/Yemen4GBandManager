@@ -85,8 +85,9 @@ internal object RouterProbe {
                     detectedVendor != "مودم غير معروف" -> detectedVendor
                     else -> "مودم غير معروف"
                 }
-                if (body.isNotBlank() && path == "/") break
-                if (status in 200..399 && body.isNotBlank()) break
+                // Do not stop at a generic login page: model fingerprints may be exposed only by a read-only API endpoint.
+                val identified = detectedVendor == "ZTE" || detectedVendor == "ZLT"
+                if (identified && status in 200..399) break
                 lastFailure = "تم الوصول إلى الجهاز، لكن واجهة الإدارة لم تعرض بيانات قابلة للتعرّف."
             } catch (e: Exception) {
                 lastFailure = when (e) {
