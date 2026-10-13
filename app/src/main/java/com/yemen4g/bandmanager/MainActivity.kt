@@ -468,6 +468,20 @@ private fun UsageDashboard() {
             )
         }
     }
+    Button(
+        onClick = {
+            val csv = ledger.exportCsv()
+            val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "text/csv"
+                putExtra(android.content.Intent.EXTRA_SUBJECT, "سجل استهلاك يمن فورجي")
+                putExtra(android.content.Intent.EXTRA_TEXT, csv)
+            }
+            context.startActivity(android.content.Intent.createChooser(sendIntent, "تصدير سجل الاستهلاك"))
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text("تصدير سجل الاستهلاك CSV")
+    }
     Text(
         "مهم: دقة التقارير تعتمد على إدخال العدادات التراكمية الصحيحة. إذا أُعيد ضبط عداد المودم، فسيتجاهل التطبيق الفرق السالب بدلاً من احتساب استهلاك خاطئ.",
         color = Color(0xFF475569), fontSize = 12.sp
