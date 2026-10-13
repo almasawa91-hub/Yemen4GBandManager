@@ -3,8 +3,9 @@ package com.yemen4g.bandmanager
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
-import java.time.LocalDate
-import java.time.YearMonth
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 internal data class UsageRecord(
     val date: String,
@@ -21,6 +22,11 @@ internal data class UsageSummary(
     val monthlyLimitGb: Double
 )
 
+/** Computes a cumulative MB counter delta; resets are treated as a new baseline. */
+internal fun cumulativeCounterDeltaMb(previous: Double, current: Double): Double =
+    if (!previous.isFinite() || !current.isFinite() || previous < 0.0 || current < previous) 0.0
+    else current - previous
+
 /**
  * Stores snapshots copied from the router's own usage counters.
  * The app never estimates usage from connection speed. The first snapshot is a baseline.
@@ -35,18 +41,21 @@ internal class UsageLedger(context: Context) {
 
     fun monthlyLimitGb(): Double = prefs.getFloat(KEY_LIMIT, 30f).toDouble()
 
-    fun recordCumulativeCounters(downloadMb: Double, uploadMb: Double, date: LocalDate = LocalDate.now()): UsageRecord? {
+    fun recordCumulativeCounters(downloadMb: Double, uploadMb: Double, date: String = today()): UsageRecord? {
         require(downloadMb.isFinite() && uploadMb.isFinite() && downloadMb >= 0.0 && uploadMb >= 0.0) {
             "يجب إدخال عدادات تراكمية صحيحة وغير سالبة من صفحة المودم."
         }
+        require(isValidDate(date)) { "تاريخ القراءة غير صالح." }
         val previousDown = prefs.getString(KEY_DOWN, null)?.toDoubleOrNull()
         val previousUp = prefs.getString(KEY_UP, null)?.toDoubleOrNull()
         prefs.edit().putString(KEY_DOWN, downloadMb.toString()).putString(KEY_UP, uploadMb.toString()).apply()
         if (previousDown == null || previousUp == null) return null
 
-        val downDelta = if (downloadMb >= previousDown) downloadMb - previousDown else 0.0
-        val upDelta = if (uploadMb >= previousUp) uploadMb - previousUp else 0.0
-        val record = UsageRecord(date.toString(), downDelta, upDelta)
+        val record = UsageRecord(
+            date,
+            cumulativeCounterDeltaMb(previousDown, downloadMb),
+            cumulativeCounterDeltaMb(previousUp, uploadMb)
+        )
         val records = readRecords().toMutableList()
         records.add(record)
         while (records.size > 2000) records.removeAt(0)
@@ -62,13 +71,11 @@ internal class UsageLedger(context: Context) {
         prefs.edit().remove(KEY_DOWN).remove(KEY_UP).apply()
     }
 
-    fun summary(today: LocalDate = LocalDate.now()): UsageSummary {
-        val month = YearMonth.from(today)
+    fun summary(date: String = today()): UsageSummary {
+        val monthPrefix = date.take(7)
         val records = readRecords()
-        val todayRecords = records.filter { it.date == today.toString() }
-        val monthRecords = records.filter {
-            runCatching { YearMonth.from(LocalDate.parse(it.date)) == month }.getOrDefault(false)
-        }
+        val todayRecords = records.filter { it.date == date }
+        val monthRecords = records.filter { it.date.startsWith(monthPrefix) }
         return UsageSummary(
             todayRecords.sumOf { it.downloadMb },
             todayRecords.sumOf { it.uploadMb },
@@ -90,11 +97,18 @@ internal class UsageLedger(context: Context) {
                 val date = item.optString("date")
                 val down = item.optDouble("down", Double.NaN)
                 val up = item.optDouble("up", Double.NaN)
-                if (runCatching { LocalDate.parse(date) }.isFailure || !down.isFinite() || !up.isFinite() || down < 0 || up < 0) null
+                if (!isValidDate(date) || !down.isFinite() || !up.isFinite() || down < 0 || up < 0) null
                 else UsageRecord(date, down, up)
             }
         }.getOrDefault(emptyList())
     }
+
+    private fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+
+    private fun isValidDate(value: String): Boolean = runCatching {
+        val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { isLenient = false }
+        formatter.parse(value) != null
+    }.getOrDefault(false)
 
     private companion object {
         const val KEY_DOWN = "last_download_mb"
