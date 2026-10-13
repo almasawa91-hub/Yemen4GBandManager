@@ -212,7 +212,7 @@ private fun RouterDashboard() {
                     modifier = Modifier.weight(1f)
                 ) { Text("اختيار ZLT S25") }
                 androidx.compose.material3.OutlinedButton(
-                    onClick = { model = "ZTE MF293N"; profileSaved = false },
+                    onClick = { model = "ZTE MF293N"; firmware = "BD_MF293NV1.0.0B04"; profileSaved = false },
                     modifier = Modifier.weight(1f)
                 ) { Text("اختيار ZTE MF293N") }
             }
